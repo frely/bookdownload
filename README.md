@@ -1,10 +1,10 @@
 # 一个简单的小说下载软件
 
-# 使用
+## 使用例子
 ```shell
 git clone https://github.com/frely/bookdownload
 
-cd bookdownload/app/
+cd bookdownload/cmd/changyexiaoshuo/
 
-go run xxx.go
+go run changyexiaoshuo.go
 ```
