@@ -74,7 +74,7 @@ func getChapterInfo(bookIndexList [][]string) {
 		chapterUrl := index[1]
 
 		// 写入文件
-		fileName = fmt.Sprintf("《%s》作者:%s[更新至%s]", bookName, author, latestChapterName)
+		fileName = fmt.Sprintf("《%s》作者:%s[更新至%s].txt", bookName, author, latestChapterName)
 		if firstRun == 0 {
 			os.Remove(fileName)
 		}
