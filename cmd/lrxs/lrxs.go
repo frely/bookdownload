@@ -1,15 +1,19 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/djimenez/iconv-go"
+	"golang.org/x/net/html/charset"
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/transform"
 )
 
 var (
@@ -22,6 +26,15 @@ var (
 	fileName          string
 	firstRun          int = 0
 )
+
+func main() {
+	fmt.Println("请输入书籍地址：")
+	fmt.Scanln(&url)
+	fmt.Println("开始搜索章节，请等待。。。")
+	getIndex(url)
+	getChapterInfo(bookIndexList)
+	fmt.Println("下载已完成。")
+}
 
 func getIndex(url string) {
 	client := &http.Client{
@@ -37,12 +50,13 @@ func getIndex(url string) {
 		log.Fatalf("status code error: %d %s", res.StatusCode, res.Status)
 	}
 
-	utf8Body, err := iconv.NewReader(res.Body, "gbk", "utf-8")
+	ct := res.Header.Get("Content-Type")
+	bodyReader, err := charset.NewReader(res.Body, ct)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	doc, err := goquery.NewDocumentFromReader(utf8Body)
+	doc, err := goquery.NewDocumentFromReader(bodyReader)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -108,12 +122,13 @@ func getChapterData(chapterName string, chapterUrl string) {
 		log.Fatalf("status code error: %d %s", res.StatusCode, res.Status)
 	}
 
-	utf8Body, err := iconv.NewReader(res.Body, "gbk", "utf-8")
+	ct := res.Header.Get("Content-Type")
+	bodyReader, err := charset.NewReader(res.Body, ct)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	doc, err := goquery.NewDocumentFromReader(utf8Body)
+	doc, err := goquery.NewDocumentFromReader(bodyReader)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -131,11 +146,11 @@ func getChapterData(chapterName string, chapterUrl string) {
 	}
 }
 
-func main() {
-	fmt.Println("请输入书籍地址：")
-	fmt.Scanln(&url)
-	fmt.Println("开始搜索章节，请等待。。。")
-	getIndex(url)
-	getChapterInfo(bookIndexList)
-	fmt.Println("下载已完成。")
+func GbkToUtf8(s []byte) ([]byte, error) {
+	reader := transform.NewReader(bytes.NewReader(s), simplifiedchinese.GBK.NewDecoder())
+	d, e := ioutil.ReadAll(reader)
+	if e != nil {
+		return nil, e
+	}
+	return d, nil
 }
