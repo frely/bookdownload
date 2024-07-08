@@ -2,33 +2,37 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
+	"regexp"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
 )
 
-const indexUrl string = "https://www.ciweimao.com/book/100171528"
-
 var (
 	browser     string
+	url         string
 	bookName    string
 	author      string
 	chapterList [][]string
+	fileName    string
+	firstRun    int = 0
+	sys         string
 )
 
 func main() {
 	sysEnv()
 	getIndex()
-	fmt.Println(chapterList)
-
+	writeFile()
 }
 
 func sysEnv() {
-	sys := runtime.GOOS
+	sys = runtime.GOOS
 	if sys == "windows" {
 		browser = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"
 	} else {
@@ -38,8 +42,13 @@ func sysEnv() {
 }
 
 func getIndex() {
+	fmt.Println("请输入书籍地址：")
+	fmt.Scanln(&url)
+	url = strings.TrimSpace(url)
+	fmt.Println("开始搜索章节，请等待。。。")
+
 	u := launcher.New().Bin(browser).MustLaunch()
-	page := rod.New().ControlURL(u).MustConnect().MustPage(indexUrl)
+	page := rod.New().ControlURL(u).MustConnect().MustPage(url)
 	defer page.MustClose()
 	page.Timeout(5 * time.Second)
 
@@ -70,16 +79,67 @@ func getIndex() {
 	index.Timeout(5 * time.Second)
 	bookChapterBox, _ := index.MustElement(".book-chapter").Elements("a")
 	for _, v := range bookChapterBox {
-		chapterName, err := v.Attribute("href")
+		chapterUrl, err := v.Attribute("href")
 		if err != nil {
 			continue
 		}
-		chapterUrl, err := v.Text()
-		if err != nil || chapterUrl == "" {
+		chapterName, err := v.Text()
+		if err != nil || chapterName == "" {
 			continue
 		}
 		tmpList := make([]string, 0)
-		tmpList = append(tmpList, *chapterName, chapterUrl)
+		tmpList = append(tmpList, chapterName, *chapterUrl)
 		chapterList = append(chapterList, tmpList)
+	}
+}
+
+func writeFile() {
+	for _, index := range chapterList {
+		chapterName := index[0]
+		chapterUrl := index[1]
+
+		// 写入文件
+		fileName = fmt.Sprintf("《%s》作者：%s.txt", bookName, author)
+		if firstRun == 0 {
+			os.Remove(fileName)
+			firstRun = 1
+		}
+		f, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0755)
+		if err != nil {
+			log.Fatal("write file err\n", err)
+		}
+		defer f.Close()
+		if _, err := io.WriteString(f, "\n"+chapterName+"\n\n"); err != nil {
+			log.Fatal("write chapter err\n", err)
+		}
+		getChapterData(chapterUrl)
+		fmt.Println("已下载：", chapterName)
+	}
+	fmt.Println("下载已完成。")
+}
+
+func getChapterData(url string) {
+	u := launcher.New().Bin(browser).MustLaunch()
+	page := rod.New().ControlURL(u).MustConnect().MustPage(url)
+	defer page.MustClose()
+	page.Timeout(5 * time.Second)
+
+	ps, err := page.MustElement("#J_BookRead").Elements("p")
+	if err != nil {
+		log.Fatal("getChapterData err\n", err)
+	}
+	for _, p := range ps {
+		i, _ := p.HTML()
+		findStr := regexp.MustCompile(`<p class="chapter">(.*?)<span>`).FindStringSubmatch(i)
+		if findStr != nil {
+			f, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0755)
+			if err != nil {
+				log.Fatal("write file err\n", err)
+			}
+			defer f.Close()
+			if _, err := io.WriteString(f, strings.TrimSpace(findStr[1])+"\n"); err != nil {
+				log.Fatal("write chapter err\n", err)
+			}
+		}
 	}
 }
